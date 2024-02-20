@@ -1,29 +1,41 @@
 import { useState, useEffect } from "react";
-import { db } from "./firebaseConnection";
+import { db, auth } from "./firebaseConnection";
 import {
   doc,
   addDoc,
   getDocs,
-  getDoc,
+  // getDoc,
   updateDoc,
-  setDoc,
+  // setDoc,
   deleteDoc,
   collection,
   onSnapshot,
 } from "firebase/firestore";
+import {
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+  signOut,
+  onAuthStateChanged,
+} from "firebase/auth";
 
-import "./app.css";
+import "./App.css";
 
 const App = () => {
   const [titulo, setTitulo] = useState("");
   const [autor, setAutor] = useState("");
   const [idPost, setIdPost] = useState("");
 
+  const [email, setEmail] = useState("");
+  const [senha, setSenha] = useState("");
+
+  const [user, setUser] = useState(false);
+  const [userDetail, setUserDetail] = useState({});
+
   const [posts, setPosts] = useState([]);
 
   useEffect(() => {
     async function loadPosts() {
-      const unsub = onSnapshot(collection(db, "posts"), (snapshot) => {
+      onSnapshot(collection(db, "posts"), (snapshot) => {
         let listaPost = [];
 
         snapshot.forEach((doc) => {
@@ -39,6 +51,25 @@ const App = () => {
     }
 
     loadPosts();
+  }, []);
+
+  useEffect(() => {
+    async function checkLogin() {
+      onAuthStateChanged(auth, (user) => {
+        if (user) {
+          setUserDetail({
+            uid: user.uid,
+            email: user.email,
+          });
+          setUser(true);
+        } else {
+          setUserDetail({});
+          setUser(false);
+        }
+      });
+    }
+
+    checkLogin();
   }, []);
 
   async function handleAdd() {
@@ -122,11 +153,89 @@ const App = () => {
       });
   }
 
+  async function novoUsuario() {
+    await createUserWithEmailAndPassword(auth, email, senha)
+      .then((value) => {
+        console.log("CADASTRADO COM SUCESSO!");
+
+        setEmail("");
+        setSenha("");
+      })
+      .catch((erro) => {
+        if (erro.code === "auth/weak-password") {
+          alert("Senha muito fraca.");
+        } else if (erro.code === "auth/email-already-in-use") {
+          alert("Email já existe!");
+        }
+      });
+  }
+
+  async function logarUsuario() {
+    signInWithEmailAndPassword(auth, email, senha)
+      .then((value) => {
+        console.log("USER LOGADO COM SUCESSO");
+
+        setUserDetail({
+          uid: value.user.uid,
+          email: value.user.email,
+        });
+        setUser(true);
+
+        setEmail("");
+        setSenha("");
+      })
+      .catch(() => {
+        console.log("ERRO AO FAZER O LOGIN");
+      });
+  }
+
+  async function fazerLogout() {
+    await signOut(auth);
+    setUserDetail({});
+    setUser(false);
+  }
+
   return (
     <div className="App">
       <h1>{`ReactJS + Firebase :)`}</h1>
 
+      {user && (
+        <div>
+          <strong>Seja bem-vindo(a) (você está logado!)</strong> <br />
+          <span>
+            ID: {userDetail.uid} - E-mail: {userDetail.email}
+          </span>
+          <button onClick={fazerLogout}>Sair da conta</button>
+          <br />
+          <br />
+        </div>
+      )}
+
       <div className="container">
+        <h2>Usuários</h2>
+        <label>Email</label>
+        <input
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          placeholder="Digite seu email"
+        />{" "}
+        <br />
+        <label>Senha</label>
+        <input
+          value={senha}
+          onChange={(e) => setSenha(e.target.value)}
+          placeholder="Informe sua senha"
+        />{" "}
+        <br />
+        <button onClick={novoUsuario}>Cadastrar</button>
+        <button onClick={logarUsuario}>Fazer login</button>
+      </div>
+
+      <br />
+      <hr />
+
+      <div className="container">
+        <h2>POSTS</h2>
         <label>ID do Post:</label>
         <input
           placeholder="Digite o ID do Post"
